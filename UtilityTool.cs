@@ -1,7 +1,7 @@
 ﻿using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using static Gomoku.Form1;
+using static Gomoku.Game;
 
 namespace Gomoku
 {
@@ -25,13 +25,13 @@ namespace Gomoku
                 using (var wrapMode = new ImageAttributes())
                 {
                     wrapMode.SetWrapMode(WrapMode.TileFlipXY);
-                    graphics.DrawImage(image, destRect, 0, 0, image.Width,image.Height, GraphicsUnit.Pixel, wrapMode);
+                    graphics.DrawImage(image, destRect, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, wrapMode);
                 }
             }
 
             return destImage;
         }
-        
+
         public static void ChangeTurn()
         {
             currentTurn = 3 - currentTurn;

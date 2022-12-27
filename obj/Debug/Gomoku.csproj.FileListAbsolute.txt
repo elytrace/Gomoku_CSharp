@@ -8,3 +8,14 @@ D:\Gomoku_CSharp\obj\Debug\Gomoku.csproj.GenerateResource.cache
 D:\Gomoku_CSharp\obj\Debug\Gomoku.csproj.CoreCompileInputs.cache
 D:\Gomoku_CSharp\obj\Debug\Gomoku.exe
 D:\Gomoku_CSharp\obj\Debug\Gomoku.pdb
+E:\Gomoku\bin\Debug\Gomoku.exe.config
+E:\Gomoku\bin\Debug\Gomoku.exe
+E:\Gomoku\bin\Debug\Gomoku.pdb
+E:\Gomoku\obj\Debug\Gomoku.csproj.AssemblyReference.cache
+E:\Gomoku\obj\Debug\Gomoku.csproj.SuggestedBindingRedirects.cache
+E:\Gomoku\obj\Debug\Gomoku.Properties.Resources.resources
+E:\Gomoku\obj\Debug\Gomoku.csproj.GenerateResource.cache
+E:\Gomoku\obj\Debug\Gomoku.csproj.CoreCompileInputs.cache
+E:\Gomoku\obj\Debug\Gomoku.exe
+E:\Gomoku\obj\Debug\Gomoku.pdb
+E:\Gomoku\obj\Debug\Gomoku.Game.resources
