@@ -14,72 +14,72 @@ namespace Gomoku
     public partial class Game : Form
     {
         // SCREEN SETTINGS
-        public const int size = 20;
-        private const int tileSize = 32;
+        public const int size = 20;             // number of blocks
+        private const int tileSize = 20;        // blocks' edge width
 
         private const int WIDTH = size * tileSize + tileSize * 9;
         private const int HEIGHT = size * tileSize + tileSize * 2;
 
-        // LOGIC GAMES
-        private const int NONE = 0;
-
-        private const int timeThinking = 15;
-
-        // ALGORITHM SETTINGS
-        public static int[,] board = new int[size, size];
+        // END GAME CHECKING
         private static readonly Button[,] btnList = new Button[size, size];
-        public static int WHITE = 1;
-        public static int BLACK = 2;
+
+        // LOGIC GAMES
+        public static readonly int[,] board = new int[size, size];
+
+        private const int NONE = 0;
+        private static int WHITE = 1;
+        private static int BLACK = 2;
         public static int currentTurn = WHITE;
 
         private static int whiteScore;
         private static int blackScore;
+        
         private static Timer counter;
+        private const int timeThinking = 15; // seconds
+        private bool start = false;
 
         // GUI
         private static Image whiteSymbol = Image.FromFile(Path.GetFullPath("Materials\\X.png"));
         private static Image blackSymbol = Image.FromFile(Path.GetFullPath("Materials\\O.png"));
         private static readonly Label scoreLabel = new Label();
-        public static ProgressBar pb = new ProgressBar();
-        public static Label turnIndication = new Label();
+        private static readonly ProgressBar whitePb = new ProgressBar();
+        private static readonly ProgressBar blackPb = new ProgressBar();
+        private static readonly Label turnIndication = new Label();
         
-        // Server
-        private readonly TcpClient client;
+        // SERVER
+        private bool isHost;
+        private readonly Socket socket;
         private readonly BackgroundWorker messageReceiver = new BackgroundWorker();
         private readonly TcpListener server;
-
-        // SOCKET
-        private readonly Socket socket;
+        private readonly TcpClient client;
 
         public Game(bool isHost, string ip = null)
         {
             InitializeComponent();
-            messageReceiver.DoWork += MessageReceiver_DoWork;
-            CheckForIllegalCrossThreadCalls = false;
 
             InitPlayground();
             InitScoreBoard();
             InitCounter();
-            ClientSize = new Size(WIDTH, HEIGHT);
 
+            this.isHost = isHost;
+            this.ClientSize = new Size(WIDTH, HEIGHT);
             whiteSymbol = ScaleImage(whiteSymbol, tileSize, tileSize);
             blackSymbol = ScaleImage(blackSymbol, tileSize, tileSize);
 
+            messageReceiver.DoWork += WaitForOpponent;
+            CheckForIllegalCrossThreadCalls = false;
+
             if (isHost)
             {
-                WHITE = 1;
-                BLACK = 2;
-                server = new TcpListener(IPAddress.Any, 20000);
+                server = new TcpListener(IPAddress.Any, 5555);
                 server.Start();
                 socket = server.AcceptSocket();
             }
             else
             {
-                WHITE = 2;
-                BLACK = 1;
                 try
                 {
-                    client = new TcpClient(ip, 25000);
+                    client = new TcpClient(ip, 5555);
                     socket = client.Client;
                     messageReceiver.RunWorkerAsync();
                 }
@@ -91,18 +91,20 @@ namespace Gomoku
             }
         }
 
-        private void MessageReceiver_DoWork(object sender, DoWorkEventArgs e)
+        private void WaitForOpponent(object sender, DoWorkEventArgs e)
         {
-            if (IsWon()) return;
             FreezeBoard();
-            turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @"turn";
             ReceiveMove();
-            turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @"turn";
-            UnfreezeBoard();
+            if(!IsWon()) UnfreezeBoard();
         }
 
         private void MakeMove(object sender, EventArgs e)
         {
+            if (!start)
+            {
+                start = true;
+                counter.Start();
+            }
             var btn = (Button)sender;
             if (btn.Image != null) return;
             btn.Image = currentTurn == WHITE ? whiteSymbol : blackSymbol;
@@ -112,39 +114,60 @@ namespace Gomoku
             board[j, i] = currentTurn;
             byte[] num = { (byte)i, (byte)j };
             socket.Send(num);
-            messageReceiver.RunWorkerAsync();
 
             if (IsWon())
             {
-                counter.Stop();
-                MessageBox.Show(@"Player " + (currentTurn == WHITE ? "1" : "2") + @" wins");
-                if (currentTurn == WHITE) whiteScore++;
-                else blackScore++;
-                RepaintBoard();
+                DisplayWinner();
                 return;
             }
 
             ChangeTurn();
+            messageReceiver.RunWorkerAsync();
         }
 
         private void FreezeBoard()
         {
-            foreach (var btn in btnList) btn.Enabled = false;
+            foreach (var btn in btnList) btn.Click -= MakeMove;
         }
 
         private void UnfreezeBoard()
         {
-            foreach (var btn in btnList) btn.Enabled = true;
+            foreach (var btn in btnList) btn.Click += MakeMove;
         }
 
         private void ReceiveMove()
         {
             var buffer = new byte[2];
             socket.Receive(buffer);
+            counter.Start();
             btnList[buffer[1], buffer[0]].Image = currentTurn == WHITE ? whiteSymbol : blackSymbol;
+            board[buffer[1], buffer[0]] = currentTurn;
+            if (IsWon())
+            {
+                DisplayWinner();
+                return;
+            }
             ChangeTurn();
         }
 
+        private static void ChangeTurn()
+        {
+            currentTurn = 3 - currentTurn;
+            turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @" turn";
+            whitePb.Value = whitePb.Maximum;
+            blackPb.Value = blackPb.Maximum;
+        }
+
+        private void DisplayWinner()
+        {
+            counter.Stop();
+            start = false;
+            MessageBox.Show(@"Player " + (currentTurn == WHITE ? "1" : "2") + @" wins");
+            if (currentTurn == WHITE) whiteScore++;
+            else blackScore++;
+            RepaintBoard();
+        }
+        
         #region Initiation
 
         private void InitPlayground()
@@ -208,11 +231,17 @@ namespace Gomoku
             panel.Location = new Point(WIDTH - tileSize * 7, tileSize * 5);
             panel.Size = new Size(tileSize * 6, tileSize * 7 / 2);
             panel.BorderStyle = BorderStyle.Fixed3D;
-
-            pb.Maximum = tileSize * 4;
-            pb.Value = pb.Maximum;
-            pb.Location = new Point(panel.Location.X + tileSize, panel.Location.Y + tileSize * 2);
-            pb.Size = new Size(tileSize * 4, tileSize);
+            
+            whitePb.Maximum = tileSize * 4;
+            whitePb.Value = whitePb.Maximum;
+            whitePb.Location = new Point(panel.Location.X + tileSize, panel.Location.Y + tileSize * 2);
+            whitePb.Size = new Size(tileSize * 4, tileSize);
+            
+            blackPb.Maximum = tileSize * 4;
+            blackPb.Value = blackPb.Maximum;
+            blackPb.Location = new Point(panel.Location.X + tileSize, panel.Location.Y + tileSize * 2);
+            blackPb.Size = new Size(tileSize * 4, tileSize);
+            Controls.Add(isHost ? whitePb : blackPb);
 
             turnIndication.Location = new Point(panel.Location.X + tileSize, panel.Location.Y + tileSize);
             turnIndication.AutoSize = false;
@@ -222,17 +251,31 @@ namespace Gomoku
             turnIndication.Dock = DockStyle.Top;
 
             panel.Controls.Add(turnIndication);
-            Controls.Add(pb);
             Controls.Add(panel);
 
             counter = new Timer(1000);
             counter.Elapsed += (o, e) =>
             {
-                pb.Value -= pb.Maximum / timeThinking;
-                if (pb.Value <= 0) ChangeTurn();
+                whitePb.Value = whitePb.Value > whitePb.Maximum / timeThinking ? whitePb.Value - whitePb.Maximum / timeThinking : 0;
+                blackPb.Value = blackPb.Value > blackPb.Maximum / timeThinking ? blackPb.Value - blackPb.Maximum / timeThinking : 0;
+                if (currentTurn == BLACK)
+                {
+                    if (whitePb.Value <= 0)
+                    {
+                        ChangeTurn();
+                        messageReceiver.RunWorkerAsync();
+                    }
+                }
+                else if (currentTurn == WHITE)
+                {
+                    if (blackPb.Value <= 0)
+                    {
+                        ChangeTurn();
+                        messageReceiver.RunWorkerAsync();
+                    }
+                }
             };
             counter.AutoReset = true;
-            counter.Enabled = true;
         }
 
         private void RepaintBoard()
@@ -245,10 +288,17 @@ namespace Gomoku
                 board[i, j] = NONE;
                 currentTurn = WHITE;
             }
-
-            counter.Start();
+            whitePb.Value = whitePb.Maximum;
+            blackPb.Value = blackPb.Maximum;
         }
 
         #endregion
+
+        private void Game_OnClosed(object sender, EventArgs e)
+        {
+            messageReceiver.WorkerSupportsCancellation = true;
+            messageReceiver.CancelAsync();
+            if(server != null) server.Stop();
+        }
     }
 }

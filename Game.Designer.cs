@@ -1,11 +1,14 @@
-﻿namespace Gomoku
+﻿using System.ComponentModel;
+using System.Drawing;
+
+namespace Gomoku
 {
     partial class Game
     {
         /// <summary>
         /// Required designer variable.
         /// </summary>
-        private System.ComponentModel.IContainer components = null;
+        private IContainer components = null;
 
         /// <summary>
         /// Clean up any resources being used.
@@ -30,16 +33,16 @@
         {
             this.SuspendLayout();
             // 
-            // Form1
+            // Game
             // 
             this.AutoSize = true;
-            this.ClientSize = new System.Drawing.Size(442, 456);
+            this.ClientSize = new Size(442, 456);
             this.Name = "Game";
+            this.Closed += Game_OnClosed;
             this.ResumeLayout(false);
         }
 
         #endregion
-        
     }
 }
 

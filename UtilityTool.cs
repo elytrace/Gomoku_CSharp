@@ -31,12 +31,5 @@ namespace Gomoku
 
             return destImage;
         }
-
-        public static void ChangeTurn()
-        {
-            currentTurn = 3 - currentTurn;
-            turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @" turn";
-            pb.Value = pb.Maximum;
-        }
     }
 }
