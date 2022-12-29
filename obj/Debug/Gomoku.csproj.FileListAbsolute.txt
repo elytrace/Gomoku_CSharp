@@ -2,7 +2,6 @@ D:\Gomoku_CSharp\bin\Debug\Gomoku.exe.config
 D:\Gomoku_CSharp\bin\Debug\Gomoku.exe
 D:\Gomoku_CSharp\bin\Debug\Gomoku.pdb
 D:\Gomoku_CSharp\obj\Debug\Gomoku.csproj.AssemblyReference.cache
-D:\Gomoku_CSharp\obj\Debug\Gomoku.Form1.resources
 D:\Gomoku_CSharp\obj\Debug\Gomoku.Properties.Resources.resources
 D:\Gomoku_CSharp\obj\Debug\Gomoku.csproj.GenerateResource.cache
 D:\Gomoku_CSharp\obj\Debug\Gomoku.csproj.CoreCompileInputs.cache
@@ -19,3 +18,4 @@ E:\Gomoku\obj\Debug\Gomoku.csproj.CoreCompileInputs.cache
 E:\Gomoku\obj\Debug\Gomoku.exe
 E:\Gomoku\obj\Debug\Gomoku.pdb
 E:\Gomoku\obj\Debug\Gomoku.Game.resources
+D:\Gomoku_CSharp\obj\Debug\Gomoku.Game.resources
