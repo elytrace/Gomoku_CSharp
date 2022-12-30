@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Timers;
 using System.Windows.Forms;
 using static Gomoku.GameOverChecking;
 using static Gomoku.UtilityTool;
@@ -15,7 +16,7 @@ namespace Gomoku
     {
         // SCREEN SETTINGS
         public const int size = 20;    // number of blocks
-        private const int tileSize = 16;    // blocks' edge width
+        private const int tileSize = 24;    // blocks' edge width
 
         private const int WIDTH = size * tileSize + tileSize * 9;
         private const int HEIGHT = size * tileSize + tileSize * 2;
@@ -35,7 +36,7 @@ namespace Gomoku
         private static int blackScore;
         
         private static Timer counter;
-        private const int timeThinking = 15; // seconds
+        private const float timeThinking = 15; // seconds
         private bool start = false;
 
         // GUI
@@ -46,6 +47,8 @@ namespace Gomoku
         private static readonly ProgressBar whitePb = new ProgressBar();
         private static readonly ProgressBar blackPb = new ProgressBar();
         private static readonly Label turnIndication = new Label();
+
+        private static Label logcat = new Label();
 
         // SERVER
         private readonly Socket socket;
@@ -138,18 +141,24 @@ namespace Gomoku
         {
             var buffer = new byte[2];
             socket.Receive(buffer);
-            counter.Start();
+            if (!start)
+            {
+                start = true;
+                counter.Start();
+            }
+
             if (buffer[0] != 0 && buffer[1] != 0)
             {
                 btnList[buffer[1]-1, buffer[0]-1].Image = currentTurn == WHITE ? whiteSymbol : blackSymbol;
                 board[buffer[1]-1, buffer[0]-1] = currentTurn;
+                
+                if (IsWon())
+                {
+                    DisplayWinner();
+                    return;
+                }
             }
-
-            if (IsWon())
-            {
-                DisplayWinner();
-                return;
-            }
+            
             ChangeTurn();
         }
 
@@ -171,6 +180,35 @@ namespace Gomoku
             else blackScore++;
             RepaintBoard();
         }
+        
+        private void Counting(object o, ElapsedEventArgs e)
+        {
+            pb.Value = (int)(pb.Value > pb.Maximum / timeThinking ? pb.Value - pb.Maximum / timeThinking : 0);
+            if (currentTurn == WHITE)
+            {
+                whitePb.Value = (int)(whitePb.Value > whitePb.Maximum / timeThinking ? whitePb.Value - whitePb.Maximum / timeThinking : 0);
+                if (whitePb.Value <= 0)
+                {
+                    byte[] num = { 0, 0 };
+                    socket.Send(num);
+                    ChangeTurn();
+                    messageReceiver.RunWorkerAsync();
+                }
+            }
+            else
+            {
+                blackPb.Value = (int)(blackPb.Value > blackPb.Maximum / timeThinking ? blackPb.Value - blackPb.Maximum / timeThinking : 0);
+                if (blackPb.Value <= 0)
+                {
+                    byte[] num = { 0, 0 };
+                    socket.Send(num);
+                    ChangeTurn();
+                    messageReceiver.RunWorkerAsync();
+                }
+            }
+            logcat.Text = pb.Value + " " + whitePb.Value + " " + blackPb.Value;
+        }
+        
         
         #region Initiation
 
@@ -253,37 +291,15 @@ namespace Gomoku
             turnIndication.TextAlign = ContentAlignment.BottomCenter;
             turnIndication.Dock = DockStyle.Top;
 
+            logcat.Location = new Point(WIDTH - tileSize * 7, tileSize * 9);
+            this.Controls.Add(logcat);
+            
             panel.Controls.Add(turnIndication);
             Controls.Add(pb);
             Controls.Add(panel);
 
             counter = new Timer(1000);
-            counter.Elapsed += (o, e) =>
-            {
-                pb.Value = pb.Value > pb.Maximum / timeThinking ? pb.Value - pb.Maximum / timeThinking : 0;
-                if (currentTurn == WHITE)
-                {
-                    whitePb.Value = whitePb.Value > whitePb.Maximum / timeThinking ? whitePb.Value - whitePb.Maximum / timeThinking : 0;
-                    if (whitePb.Value <= 0)
-                    {
-                        byte[] num = { 0, 0 };
-                        socket.Send(num);
-                        ChangeTurn();
-                        messageReceiver.RunWorkerAsync();
-                    }
-                }
-                else
-                {
-                    blackPb.Value = blackPb.Value > blackPb.Maximum / timeThinking ? blackPb.Value - blackPb.Maximum / timeThinking : 0;
-                    if (blackPb.Value <= 0)
-                    {
-                        byte[] num = { 0, 0 };
-                        socket.Send(num);
-                        ChangeTurn();
-                        messageReceiver.RunWorkerAsync();
-                    }
-                }
-            };
+            counter.Elapsed += Counting;
             counter.AutoReset = true;
         }
 
@@ -309,6 +325,7 @@ namespace Gomoku
             messageReceiver.WorkerSupportsCancellation = true;
             messageReceiver.CancelAsync();
             if(server != null) server.Stop();
+            RepaintBoard();
         }
     }
 }
