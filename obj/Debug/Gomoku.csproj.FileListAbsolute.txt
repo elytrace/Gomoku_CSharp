@@ -20,3 +20,4 @@ E:\Gomoku\obj\Debug\Gomoku.pdb
 E:\Gomoku\obj\Debug\Gomoku.Game.resources
 D:\Gomoku_CSharp\obj\Debug\Gomoku.Game.resources
 D:\Gomoku_CSharp\obj\Debug\Gomoku.Form1.resources
+E:\Gomoku\obj\Debug\Gomoku.Form1.resources

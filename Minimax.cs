@@ -6,7 +6,7 @@ namespace Gomoku
 {
     public class Minimax
     {
-        private int depth;
+        private readonly int depth;
 
         public Minimax(int depth)
         {
@@ -120,7 +120,7 @@ namespace Gomoku
             }
         }
 
-        private static Tuple<int, int> winning_move(int[,] position, bool player1Turn)
+        private static Tuple<int, int> winning_move(int[,] position, int currentTurn)
         {
             var possibleMoves = Minimax.possibleMoves(position);
             for(int i = 0; i < possibleMoves.Count; i++) {
@@ -129,8 +129,8 @@ namespace Gomoku
                     for(int k = 0; k < size; k++)
                         current_board[j, k] = position[j, k];
                 
-                current_board[possibleMoves[i].Item1, possibleMoves[i].Item2] = player1Turn ? 1 : 2;
-                if(Heuristic.getScore(current_board, false, player1Turn) >= Heuristic.winScore)
+                current_board[possibleMoves[i].Item1, possibleMoves[i].Item2] = (currentTurn == WHITE ? 1 : 2);
+                if(Heuristic.getScore(current_board, false, currentTurn == WHITE) >= Heuristic.winScore)
                 {
                     var location = possibleMoves[i];
                     return location;
@@ -139,13 +139,13 @@ namespace Gomoku
             return null;
         }
 
-        public Tuple<int, int> best_move(int[,] position, bool player1Turn) {
+        public Tuple<int, int> best_move(int[,] position, int currentTurn) {
             Tuple<int, int> location = null;
             var possibleMoves = Minimax.possibleMoves(position);
             double value = -1;
 
-            if(winning_move(position, player1Turn) != null) {
-                return winning_move(position, player1Turn);
+            if(winning_move(position, currentTurn) != null) {
+                return winning_move(position, currentTurn);
             }
 
             for(int i = 0; i < possibleMoves.Count; i++) {
@@ -154,7 +154,7 @@ namespace Gomoku
                     for(int k = 0; k < size; k++)
                         current_board[j, k] = position[j, k];
                         
-                current_board[possibleMoves[i].Item1, possibleMoves[i].Item2] = 2;
+                current_board[possibleMoves[i].Item1, possibleMoves[i].Item2] = BLACK;
                 
                 if(minimax(current_board, depth, -1, Heuristic.winScore, false) >= value) {
                     value = minimax(current_board, depth, -1, Heuristic.winScore, false);
