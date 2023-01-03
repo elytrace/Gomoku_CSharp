@@ -16,7 +16,7 @@ namespace Gomoku
     {
         // SCREEN SETTINGS
         public const int size = 20;    // number of blocks
-        private const int tileSize = 24;    // blocks' edge width
+        private const int tileSize = 16;    // blocks' edge width
 
         private const int WIDTH = size * tileSize + tileSize * 9;
         private const int HEIGHT = size * tileSize + tileSize * 2;
@@ -28,7 +28,7 @@ namespace Gomoku
         public static readonly int[,] board = new int[size, size];
 
         private const int NONE = 0;
-        private static int WHITE = 1;
+        private const int WHITE = 1;
         private static int BLACK = 2;
         public static int currentTurn = WHITE;
 
@@ -48,16 +48,21 @@ namespace Gomoku
         private static readonly ProgressBar blackPb = new ProgressBar();
         private static readonly Label turnIndication = new Label();
 
-        private static Label logcat = new Label();
+        private static readonly Label logcat = new Label();
 
         // SERVER
+        private readonly bool isSinglePlayer;
+        private Minimax bot;
+        
         private readonly Socket socket;
         private readonly BackgroundWorker messageReceiver = new BackgroundWorker();
         private readonly TcpListener server;
         private readonly TcpClient client;
 
-        public Game(bool isHost, string ip = null)
+        public Game(bool isSinglePlayer, bool isHost, string ip = null, int level = 0)
         {
+            this.isSinglePlayer = isSinglePlayer;
+            
             InitializeComponent();
 
             InitPlayground();
@@ -67,32 +72,36 @@ namespace Gomoku
             this.ClientSize = new Size(WIDTH, HEIGHT);
             whiteSymbol = ScaleImage(whiteSymbol, tileSize, tileSize);
             blackSymbol = ScaleImage(blackSymbol, tileSize, tileSize);
-
-            messageReceiver.DoWork += WaitForOpponent;  // Coroutine
-            CheckForIllegalCrossThreadCalls = false;
-
-            if (isHost)
+            bot = new Minimax(level);
+            
+            if (!isSinglePlayer)
             {
-                server = new TcpListener(IPAddress.Any, 5555);
-                server.Start();
-                socket = server.AcceptSocket();
-            }
-            else
-            {
-                try
+                messageReceiver.DoWork += WaitForOpponent; // Coroutine
+                CheckForIllegalCrossThreadCalls = false;
+
+                if (isHost)
                 {
-                    client = new TcpClient(ip, 5555);
-                    socket = client.Client;
-                    messageReceiver.RunWorkerAsync();
+                    server = new TcpListener(IPAddress.Any, 8888);
+                    server.Start();
+                    socket = server.AcceptSocket();
                 }
-                catch (Exception e)
+                else
                 {
-                    MessageBox.Show(e.Message);
-                    Close();
+                    try
+                    {
+                        client = new TcpClient(ip, 8888);
+                        socket = client.Client;
+                        messageReceiver.RunWorkerAsync();
+                    }
+                    catch (Exception e)
+                    {
+                        MessageBox.Show(e.Message);
+                        Close();
+                    }
                 }
             }
         }
-
+        
         private void WaitForOpponent(object sender, DoWorkEventArgs e)
         {
             FreezeBoard();
@@ -112,11 +121,12 @@ namespace Gomoku
 
         private void MakeMove(object sender, EventArgs e)
         {
-            if (!start)
+            if (!isSinglePlayer && !start)
             {
                 start = true;
                 counter.Start();
             }
+
             var btn = (Button)sender;
             if (btn.Image != null) return;
             btn.Image = currentTurn == WHITE ? whiteSymbol : blackSymbol;
@@ -124,8 +134,6 @@ namespace Gomoku
             var j = (btn.Location.X - tileSize) / tileSize;
             var i = (btn.Location.Y - tileSize) / tileSize;
             board[j, i] = currentTurn;
-            byte[] num = { (byte)(i+1), (byte)(j+1) };
-            socket.Send(num);
 
             if (IsWon())
             {
@@ -134,9 +142,29 @@ namespace Gomoku
             }
 
             ChangeTurn();
-            messageReceiver.RunWorkerAsync();
+
+            if (!isSinglePlayer)
+            {
+                byte[] num = { (byte)(i + 1), (byte)(j + 1) };
+                socket.Send(num);
+                messageReceiver.RunWorkerAsync();
+            }
+            else
+            {
+                BotMove();
+            }
         }
 
+        private void BotMove()
+        {
+            FreezeBoard();
+            var (j, i) = bot.best_move(board, currentTurn == WHITE);
+            board[j, i] = currentTurn;
+            btnList[j, i].Image = currentTurn == WHITE ? whiteSymbol : blackSymbol;
+            ChangeTurn();
+            UnfreezeBoard();
+        }
+        
         private void ReceiveMove()
         {
             var buffer = new byte[2];
@@ -162,20 +190,34 @@ namespace Gomoku
             ChangeTurn();
         }
 
-        private static void ChangeTurn()
+        private void ChangeTurn()
         {
             currentTurn = 3 - currentTurn;
-            turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @" turn";
-            pb.Value = pb.Maximum;
-            whitePb.Value = whitePb.Maximum;
-            blackPb.Value = blackPb.Maximum;
+
+            if (!isSinglePlayer)
+            {
+                turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @" turn";
+                pb.Value = pb.Maximum;
+                whitePb.Value = whitePb.Maximum;
+                blackPb.Value = blackPb.Maximum;
+            }
+            else
+            {
+                turnIndication.Text = (currentTurn == WHITE ? "Player" : "Computer") + @" turn";
+            }
         }
 
         private void DisplayWinner()
         {
-            counter.Stop();
-            start = false;
-            MessageBox.Show(@"Player " + (currentTurn == WHITE ? "1" : "2") + @" wins");
+            if (!isSinglePlayer)
+            {
+                counter.Stop();
+                start = false;
+                MessageBox.Show(@"Player " + (currentTurn == WHITE ? "1" : "2") + @" wins");
+            }
+            else
+                MessageBox.Show((currentTurn == WHITE ? "Player" : "Computer") + @" wins");
+
             if (currentTurn == WHITE) whiteScore++;
             else blackScore++;
             RepaintBoard();
@@ -206,9 +248,8 @@ namespace Gomoku
                     messageReceiver.RunWorkerAsync();
                 }
             }
-            logcat.Text = pb.Value + " " + whitePb.Value + " " + blackPb.Value;
+            // logcat.Text = pb.Value + @" " + whitePb.Value + @" " + blackPb.Value;
         }
-        
         
         #region Initiation
 
@@ -287,7 +328,11 @@ namespace Gomoku
             turnIndication.Location = new Point(panel.Location.X + tileSize, panel.Location.Y + tileSize);
             turnIndication.AutoSize = false;
             turnIndication.Font = new Font("Arial", 10, FontStyle.Bold);
-            turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @" turn";
+            if(!isSinglePlayer)
+                turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @" turn";
+            else 
+                turnIndication.Text = (currentTurn == WHITE ? "Player" : "Computer") + @" turn";
+            
             turnIndication.TextAlign = ContentAlignment.BottomCenter;
             turnIndication.Dock = DockStyle.Top;
 
@@ -295,12 +340,15 @@ namespace Gomoku
             this.Controls.Add(logcat);
             
             panel.Controls.Add(turnIndication);
-            Controls.Add(pb);
             Controls.Add(panel);
 
-            counter = new Timer(1000);
-            counter.Elapsed += Counting;
-            counter.AutoReset = true;
+            if (!isSinglePlayer)
+            {
+                Controls.Add(pb);
+                counter = new Timer(1000);
+                counter.Elapsed += Counting;
+                counter.AutoReset = true;
+            }
         }
 
         private void RepaintBoard()
@@ -313,19 +361,26 @@ namespace Gomoku
                 board[i, j] = NONE;
                 currentTurn = WHITE;
             }
-            pb.Value = pb.Maximum;
-            whitePb.Value = whitePb.Maximum;
-            blackPb.Value = blackPb.Maximum;
+
+            if (!isSinglePlayer)
+            {
+                pb.Value = pb.Maximum;
+                whitePb.Value = whitePb.Maximum;
+                blackPb.Value = blackPb.Maximum;
+            }
         }
 
         #endregion
 
         private void Game_OnClosed(object sender, EventArgs e)
         {
-            messageReceiver.WorkerSupportsCancellation = true;
-            messageReceiver.CancelAsync();
-            if(server != null) server.Stop();
-            RepaintBoard();
+            if (!isSinglePlayer)
+            {
+                messageReceiver.WorkerSupportsCancellation = true;
+                messageReceiver.CancelAsync();
+                if (server != null) server.Stop();
+                RepaintBoard();
+            }
         }
     }
 }
