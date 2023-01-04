@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.IO;
@@ -28,7 +29,7 @@ namespace Gomoku
         // LOGIC GAMES
         public static readonly int[,] board = new int[size, size];
 
-        private const int NONE = 0;
+        public const int NONE = 0;
         public const int WHITE = 1;
         public const int BLACK = 2;
         public static int currentTurn = WHITE;
@@ -41,8 +42,8 @@ namespace Gomoku
         private bool start;
 
         // GUI
-        private static Image whiteSymbol = Image.FromFile(Path.GetFullPath("Materials\\X.png"));
-        private static Image blackSymbol = Image.FromFile(Path.GetFullPath("Materials\\O.png"));
+        private static Image whiteIcon = Image.FromFile(Path.GetFullPath("Materials\\X.png"));
+        private static Image blackIcon = Image.FromFile(Path.GetFullPath("Materials\\O.png"));
         private static readonly Label scoreLabel = new Label();
         private static readonly ProgressBar pb = new ProgressBar();
         private static readonly ProgressBar whitePb = new ProgressBar();
@@ -58,9 +59,12 @@ namespace Gomoku
         private readonly Socket socket;
         private readonly BackgroundWorker messageReceiver = new BackgroundWorker();
         private readonly TcpListener server;
-        private readonly TcpClient client;
 
-        public Game(bool isSinglePlayer, bool isHost, string ip = null, int level = 0)
+        // MOVE TRACKING
+        private readonly List<Tuple<int, int>> undoMoves = new List<Tuple<int, int>>();
+        private readonly List<Tuple<int, int>> redoMoves = new List<Tuple<int, int>>();
+
+        public Game(bool isSinglePlayer, bool isHost, int level = 0)
         {
             this.isSinglePlayer = isSinglePlayer;
             
@@ -71,8 +75,8 @@ namespace Gomoku
             InitCounter();
 
             this.ClientSize = new Size(WIDTH, HEIGHT);
-            whiteSymbol = ScaleImage(whiteSymbol, tileSize, tileSize);
-            blackSymbol = ScaleImage(blackSymbol, tileSize, tileSize);
+            whiteIcon = ScaleImage(whiteIcon, tileSize, tileSize);
+            blackIcon = ScaleImage(blackIcon, tileSize, tileSize);
             bot = new Minimax(level);
             
             if (!isSinglePlayer)
@@ -80,9 +84,9 @@ namespace Gomoku
                 messageReceiver.DoWork += WaitForOpponent; // Coroutine
                 CheckForIllegalCrossThreadCalls = false;
 
-                IPAddress ipAddress = IPAddress.Parse("192.168.1.11");
                 if (isHost)
                 {
+                    IPAddress ipAddress = IPAddress.Parse("192.168.1.11");
                     server = new TcpListener(ipAddress, 8888);
                     server.Start();
                     socket = server.AcceptSocket();
@@ -91,7 +95,7 @@ namespace Gomoku
                 {
                     try
                     {
-                        client = new TcpClient("192.168.1.11", 8888);
+                        var client = new TcpClient("192.168.1.11", 8888);
                         socket = client.Client;
                         messageReceiver.RunWorkerAsync();
                     }
@@ -102,20 +106,18 @@ namespace Gomoku
                     }
                 }
             }
+            else
+            {
+                InitTracker();
+            }
         }
-        
-        private void WaitForOpponent(object sender, DoWorkEventArgs e)
-        {
-            FreezeBoard();
-            ReceiveMove();
-            if(!IsWon()) UnfreezeBoard();
-        }
-        
+
+        #region GAME FLOW LOGIC
+
         private void FreezeBoard()
         {
             foreach (var btn in btnList) btn.Click -= MakeMove;
         }
-
         private void UnfreezeBoard()
         {
             foreach (var btn in btnList) btn.Click += MakeMove;
@@ -131,7 +133,7 @@ namespace Gomoku
 
             var btn = (Button)sender;
             if (btn.Image != null) return;
-            btn.Image = currentTurn == WHITE ? whiteSymbol : blackSymbol;
+            btn.Image = currentTurn == WHITE ? whiteIcon : blackIcon;
 
             var j = (btn.Location.X - tileSize) / tileSize;
             var i = (btn.Location.Y - tileSize) / tileSize;
@@ -150,55 +152,13 @@ namespace Gomoku
             }
 
             ChangeTurn();
-            if(!isSinglePlayer)
+            if (!isSinglePlayer)
                 messageReceiver.RunWorkerAsync();
-            else 
+            else
+            {
+                undoMoves.Add(new Tuple<int, int>(j, i));
                 BotMove();
-        }
-
-
-        private async Task BotMove()
-        {
-            await Task.Run(() =>
-            {
-                FreezeBoard();
-                var (j, i) = bot.best_move(board, currentTurn);
-                board[j, i] = currentTurn;
-                btnList[j, i].Image = currentTurn == WHITE ? whiteSymbol : blackSymbol;
-                ChangeTurn();
-                if (IsWon())
-                {
-                    DisplayWinner();
-                    return;
-                }
-                UnfreezeBoard();
-                Task.Delay(100).Wait();
-            });
-        }
-        
-        private void ReceiveMove()
-        {
-            var buffer = new byte[2];
-            socket.Receive(buffer);
-            if (!start)
-            {
-                start = true;
-                counter.Start();
             }
-
-            if (buffer[0] != 0 && buffer[1] != 0)
-            {
-                btnList[buffer[1]-1, buffer[0]-1].Image = currentTurn == WHITE ? whiteSymbol : blackSymbol;
-                board[buffer[1]-1, buffer[0]-1] = currentTurn;
-                
-                if (IsWon())
-                {
-                    DisplayWinner();
-                    return;
-                }
-            }
-            
-            ChangeTurn();
         }
 
         private void ChangeTurn()
@@ -217,7 +177,6 @@ namespace Gomoku
                 turnIndication.Text = (currentTurn == WHITE ? "Player" : "Computer") + @" turn";
             }
         }
-
         private void DisplayWinner()
         {
             if (!isSinglePlayer)
@@ -232,6 +191,66 @@ namespace Gomoku
             if (currentTurn == WHITE) whiteScore++;
             else blackScore++;
             RepaintBoard();
+        }
+
+        #endregion
+        
+        #region SINGLEPLAYER METHODS
+
+        private async void BotMove()
+        {
+            await Task.Run(() =>
+            {
+                FreezeBoard();
+                var (j, i) = bot.best_move(board, currentTurn);
+                board[j, i] = currentTurn;
+                btnList[j, i].Image = currentTurn == WHITE ? whiteIcon : blackIcon;
+                undoMoves.Add(new Tuple<int, int>(j, i));
+                ChangeTurn();
+                if (IsWon())
+                {
+                    DisplayWinner();
+                    return;
+                }
+                UnfreezeBoard();
+                Task.Delay(100).Wait();
+            });
+        }
+
+        #endregion
+
+        #region MULTIPLAYER METHODS
+
+        private void WaitForOpponent(object sender, DoWorkEventArgs e)
+        {
+            FreezeBoard();
+            ReceiveMove();
+            if(!IsWon()) UnfreezeBoard();
+        }
+        
+        private void ReceiveMove()
+        {
+            var buffer = new byte[2];
+            socket.Receive(buffer);
+            if (!start)
+            {
+                start = true;
+                counter.Start();
+            }
+
+            if (buffer[0] != 0 && buffer[1] != 0)
+            {
+                btnList[buffer[1]-1, buffer[0]-1].Image = currentTurn == WHITE ? whiteIcon : blackIcon;
+                board[buffer[1]-1, buffer[0]-1] = currentTurn;
+                
+                if (IsWon())
+                {
+                    DisplayWinner();
+                    return;
+                }
+            }
+            
+            ChangeTurn();
         }
         
         private void Counting(object o, ElapsedEventArgs e)
@@ -261,7 +280,9 @@ namespace Gomoku
             }
             // logcat.Text = pb.Value + @" " + whitePb.Value + @" " + blackPb.Value;
         }
-        
+
+        #endregion
+
         #region Initiation
 
         private void InitPlayground()
@@ -294,25 +315,25 @@ namespace Gomoku
             scoreBoard.TextAlign = ContentAlignment.MiddleCenter;
             scoreBoard.Dock = DockStyle.Top;
 
-            var whiteIcon = new PictureBox();
-            whiteIcon.Location = new Point(panel.Location.X + tileSize / 2, panel.Location.Y + tileSize * 3 / 2);
-            whiteIcon.Size = new Size(tileSize * 3 / 2, tileSize * 3 / 2);
-            whiteIcon.SizeMode = PictureBoxSizeMode.StretchImage;
-            whiteIcon.Image = ScaleImage(whiteSymbol, tileSize * 2, tileSize * 2);
+            var whiteSymbol = new PictureBox();
+            whiteSymbol.Location = new Point(panel.Location.X + tileSize / 2, panel.Location.Y + tileSize * 3 / 2);
+            whiteSymbol.Size = new Size(tileSize * 3 / 2, tileSize * 3 / 2);
+            whiteSymbol.SizeMode = PictureBoxSizeMode.StretchImage;
+            whiteSymbol.Image = ScaleImage(whiteIcon, tileSize * 2, tileSize * 2);
 
-            var blackIcon = new PictureBox();
-            blackIcon.Location = new Point(panel.Location.X + tileSize * 4, panel.Location.Y + tileSize * 3 / 2);
-            blackIcon.Size = new Size(tileSize * 3 / 2, tileSize * 3 / 2);
-            blackIcon.SizeMode = PictureBoxSizeMode.StretchImage;
-            blackIcon.Image = ScaleImage(blackSymbol, tileSize * 2, tileSize * 2);
+            var blackSymbol = new PictureBox();
+            blackSymbol.Location = new Point(panel.Location.X + tileSize * 4, panel.Location.Y + tileSize * 3 / 2);
+            blackSymbol.Size = new Size(tileSize * 3 / 2, tileSize * 3 / 2);
+            blackSymbol.SizeMode = PictureBoxSizeMode.StretchImage;
+            blackSymbol.Image = ScaleImage(blackIcon, tileSize * 2, tileSize * 2);
 
             scoreLabel.Location = new Point(panel.Location.X + tileSize * 2, panel.Location.Y + tileSize * 3 / 2);
             scoreLabel.Size = new Size(tileSize * 2, tileSize * 3 / 2);
             scoreLabel.Text = whiteScore + @" - " + blackScore;
             scoreLabel.TextAlign = ContentAlignment.MiddleCenter;
 
-            Controls.Add(whiteIcon);
-            Controls.Add(blackIcon);
+            Controls.Add(whiteSymbol);
+            Controls.Add(blackSymbol);
             Controls.Add(scoreLabel);
             panel.Controls.Add(scoreBoard);
 
@@ -362,6 +383,59 @@ namespace Gomoku
             Controls.Add(panel);
         }
 
+        private void InitTracker()
+        {
+            var undoIcon = Image.FromFile(Path.GetFullPath("Materials\\undo.png"));
+            undoIcon = ScaleImage(undoIcon, tileSize / 2, tileSize / 2);
+            var redoIcon = new Bitmap(undoIcon);
+            redoIcon.RotateFlip(RotateFlipType.RotateNoneFlipX);
+            
+            var btnUndo = new Button();
+            var btnRedo = new Button();
+            
+            btnUndo.Location = new Point(WIDTH - tileSize * 6, tileSize * 10);
+            btnUndo.Size = new Size(tileSize, tileSize);
+            btnUndo.ImageAlign = ContentAlignment.MiddleCenter;
+            btnUndo.Image = undoIcon;
+            btnUndo.Click += (sender, args) =>
+            {
+                for (int index = 0; index < 2; index++)
+                {
+                    var j = undoMoves[undoMoves.Count - 1].Item1;
+                    var i = undoMoves[undoMoves.Count - 1].Item2;
+                    btnList[j, i].Image = null;
+                    board[j, i] = NONE;
+                    redoMoves.Add(undoMoves[undoMoves.Count - 1]);
+                    undoMoves.RemoveAt(undoMoves.Count - 1);
+                    btnRedo.Enabled = true;
+                    ChangeTurn();
+                }
+            };
+            
+            btnRedo.Location = new Point(WIDTH - tileSize * 3, tileSize * 10);
+            btnRedo.Size = new Size(tileSize, tileSize);
+            btnRedo.ImageAlign = ContentAlignment.MiddleCenter;
+            btnRedo.Image = redoIcon;
+            btnRedo.Enabled = false;
+            btnRedo.Click += (sender, args) =>
+            {
+                for (int index = 0; index < 2; index++)
+                {
+                    ChangeTurn();
+                    var j = redoMoves[redoMoves.Count - 1].Item1;
+                    var i = redoMoves[redoMoves.Count - 1].Item2;
+                    btnList[j, i].Image = currentTurn == WHITE ? whiteIcon : blackIcon;
+                    board[j, i] = currentTurn;
+                    undoMoves.Add(redoMoves[redoMoves.Count - 1]);
+                    redoMoves.RemoveAt(redoMoves.Count - 1);
+                    if (redoMoves.Count == 0) btnRedo.Enabled = false;
+                }
+            };
+
+            this.Controls.Add(btnUndo);
+            this.Controls.Add(btnRedo);
+        }
+
         private void RepaintBoard()
         {
             scoreLabel.Text = whiteScore + @" - " + blackScore;
@@ -370,8 +444,8 @@ namespace Gomoku
             {
                 btnList[i, j].Image = null;
                 board[i, j] = NONE;
-                currentTurn = WHITE;
             }
+            currentTurn = WHITE;
 
             if (!isSinglePlayer)
             {
@@ -390,8 +464,11 @@ namespace Gomoku
                 messageReceiver.WorkerSupportsCancellation = true;
                 messageReceiver.CancelAsync();
                 if (server != null) server.Stop();
-                RepaintBoard();
+                start = false;
             }
+            RepaintBoard();
+            whiteScore = 0;
+            blackScore = 0;
         }
     }
 }

@@ -110,7 +110,7 @@ namespace Gomoku
 
             btnEasy.Click += (sender, args) =>
             {
-                Game newGame = new Game(true, false, null, 3);
+                Game newGame = new Game(true, false, 3);
                 this.Visible = false;
                 if (!newGame.IsDisposed)
                     newGame.ShowDialog();
@@ -119,7 +119,7 @@ namespace Gomoku
             
             btnHard.Click += (sender, args) =>
             {
-                Game newGame = new Game(true, false, null, 4);
+                Game newGame = new Game(true, false, 4);
                 this.Visible = false;
                 if (!newGame.IsDisposed)
                     newGame.ShowDialog();
@@ -137,7 +137,7 @@ namespace Gomoku
 
             btnJoin.Click += (sender, args) =>
             {
-                Game newGame = new Game(false, false, "");
+                Game newGame = new Game(false, false);
                 Visible = false;
                 if (!newGame.IsDisposed)
                     newGame.ShowDialog();

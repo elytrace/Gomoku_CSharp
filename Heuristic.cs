@@ -4,16 +4,16 @@ using static Gomoku.Game;
 namespace Gomoku
 {
     public static class Heuristic {
-        public static readonly int winScore = 100000000;
+        public const int winScore = 100000000;
 
-        public static int getScore(int[,] board, bool countingPlayer, bool player1Turn) {
+        public static int getScore(int[,] board, bool countingPlayer, bool currentTurn) {
        
-            return evaluateHorizontal(board, countingPlayer, player1Turn) +
-                    evaluateVertical(board, countingPlayer, player1Turn) +
-                    evaluateDiagonal(board, countingPlayer, player1Turn);
+            return evaluateHorizontal(board, countingPlayer, currentTurn) +
+                    evaluateVertical(board, countingPlayer, currentTurn) +
+                    evaluateDiagonal(board, countingPlayer, currentTurn);
         }
 
-        private static int evaluateHorizontal(int[,] board, bool countingPlayer, bool player1Turn) {
+        private static int evaluateHorizontal(int[,] board, bool countingPlayer, bool currentTurn) {
             int length = 0;
             int blocks = 2;
             int score = 0;
@@ -26,21 +26,21 @@ namespace Gomoku
                     else if(board[i, j] == 0) {
                         if(length > 0) {
                             blocks--;
-                            score += scoreExchange(length, blocks, countingPlayer == player1Turn);
+                            score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                             length = 0;
                             blocks = 1;
                         }
                         else blocks = 1;
                     }
                     else if(length > 0) {
-                        score += scoreExchange(length, blocks, countingPlayer == player1Turn);
+                        score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                         length = 0;
                         blocks = 2;
                     }
                     else blocks = 2;
                 }
                 if(length > 0) {
-                    score += scoreExchange(length, blocks, countingPlayer == player1Turn);
+                    score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                 }
                 length = 0;
                 blocks = 2;
@@ -48,7 +48,7 @@ namespace Gomoku
             return score;
         }
 
-        private static int evaluateVertical(int[,] board, bool countingPlayer, bool player1Turn) {
+        private static int evaluateVertical(int[,] board, bool countingPlayer, bool currentTurn) {
             int length = 0;
             int blocks = 2;
             int score = 0;
@@ -61,21 +61,21 @@ namespace Gomoku
                     else if(board[i, j] == 0) {
                         if(length > 0) {
                             blocks--;
-                            score += scoreExchange(length, blocks, countingPlayer == player1Turn);
+                            score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                             length = 0;
                             blocks = 1;
                         }
                         else blocks = 1;
                     }
                     else if(length > 0) {
-                        score += scoreExchange(length, blocks, countingPlayer == player1Turn);
+                        score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                         length = 0;
                         blocks = 2;
                     }
                     else blocks = 2;
                 }
                 if(length > 0) {
-                    score += scoreExchange(length, blocks, countingPlayer == player1Turn);
+                    score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                 }
                 length = 0;
                 blocks = 2;
@@ -83,7 +83,7 @@ namespace Gomoku
             return score;
         }    
 
-        private static int evaluateDiagonal(int[,] board, bool countingPlayer, bool player1Turn) {
+        private static int evaluateDiagonal(int[,] board, bool countingPlayer, bool currentTurn) {
             int length = 0;
             int blocks = 2;
             int score = 0;
@@ -100,21 +100,21 @@ namespace Gomoku
                     else if(board[i, j] == 0) {
                         if(length > 0) {
                             blocks--;
-                            score += scoreExchange(length, blocks, countingPlayer == player1Turn);
+                            score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                             length = 0;
                             blocks = 1;
                         }
                         else blocks = 1;
                     }
                     else if(length > 0) {
-                        score += scoreExchange(length, blocks, countingPlayer = player1Turn);
+                        score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                         length = 0;
                         blocks = 2;
                     }
                     else blocks = 2;
                 }
                 if(length > 0) {
-                    score += scoreExchange(length, blocks, countingPlayer = player1Turn);
+                    score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                 }
                 length = 0;
                 blocks = 2;
@@ -132,21 +132,21 @@ namespace Gomoku
                     else if(board[i, j] == 0) {
                         if(length > 0) {
                             blocks--;
-                            score += scoreExchange(length, blocks, countingPlayer == player1Turn);
+                            score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                             length = 0;
                             blocks = 1;
                         }
                         else blocks = 1;
                     }
                     else if(length > 0) {
-                        score += scoreExchange(length, blocks, countingPlayer = player1Turn);
+                        score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                         length = 0;
                         blocks = 2;
                     }
                     else blocks = 2;
                 }
                 if(length > 0) {
-                    score += scoreExchange(length, blocks, countingPlayer = player1Turn);
+                    score += scoreExchange(length, blocks, countingPlayer == currentTurn);
                 }
                 length = 0;
                 blocks = 2;
