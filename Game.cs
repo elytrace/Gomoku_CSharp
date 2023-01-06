@@ -59,10 +59,13 @@ namespace Gomoku
         private readonly Socket socket;
         private readonly BackgroundWorker messageReceiver = new BackgroundWorker();
         private readonly TcpListener server;
+        private readonly TcpClient client;
 
         // MOVE TRACKING
         private readonly List<Tuple<int, int>> undoMoves = new List<Tuple<int, int>>();
         private readonly List<Tuple<int, int>> redoMoves = new List<Tuple<int, int>>();
+        private readonly Button btnUndo = new Button();
+        private readonly Button btnRedo = new Button();
 
         public Game(bool isSinglePlayer, bool isHost, int level = 0)
         {
@@ -95,7 +98,7 @@ namespace Gomoku
                 {
                     try
                     {
-                        var client = new TcpClient("192.168.1.11", 8888);
+                        client = new TcpClient("192.168.1.11", 8888);
                         socket = client.Client;
                         messageReceiver.RunWorkerAsync();
                     }
@@ -157,6 +160,7 @@ namespace Gomoku
             else
             {
                 undoMoves.Add(new Tuple<int, int>(j, i));
+                btnUndo.Visible = true;
                 BotMove();
             }
         }
@@ -347,10 +351,10 @@ namespace Gomoku
             panel.Size = new Size(tileSize * 6, tileSize * 7 / 2);
             panel.BorderStyle = BorderStyle.Fixed3D;
             
-            pb.Maximum = tileSize * 4;
-            pb.Value = pb.Maximum;
             pb.Location = new Point(panel.Location.X + tileSize, panel.Location.Y + tileSize * 2);
             pb.Size = new Size(tileSize * 4, tileSize);
+            pb.Maximum = tileSize * 4;
+            pb.Value = pb.Maximum;
 
             whitePb.Maximum = tileSize * 4;
             whitePb.Value = whitePb.Maximum;
@@ -360,13 +364,12 @@ namespace Gomoku
             turnIndication.Location = new Point(panel.Location.X + tileSize, panel.Location.Y + tileSize);
             turnIndication.AutoSize = false;
             turnIndication.Font = new Font("Arial", 10, FontStyle.Bold);
+            turnIndication.TextAlign = ContentAlignment.BottomCenter;
+            turnIndication.Dock = DockStyle.Top;
             if(!isSinglePlayer)
                 turnIndication.Text = @"Player " + (currentTurn == WHITE ? "1" : "2") + @" turn";
             else 
                 turnIndication.Text = (currentTurn == WHITE ? "Player" : "Computer") + @" turn";
-            
-            turnIndication.TextAlign = ContentAlignment.BottomCenter;
-            turnIndication.Dock = DockStyle.Top;
 
             logcat.Location = new Point(WIDTH - tileSize * 7, tileSize * 9);
             this.Controls.Add(logcat);
@@ -389,14 +392,12 @@ namespace Gomoku
             undoIcon = ScaleImage(undoIcon, tileSize / 2, tileSize / 2);
             var redoIcon = new Bitmap(undoIcon);
             redoIcon.RotateFlip(RotateFlipType.RotateNoneFlipX);
-            
-            var btnUndo = new Button();
-            var btnRedo = new Button();
-            
+
             btnUndo.Location = new Point(WIDTH - tileSize * 6, tileSize * 10);
             btnUndo.Size = new Size(tileSize, tileSize);
             btnUndo.ImageAlign = ContentAlignment.MiddleCenter;
             btnUndo.Image = undoIcon;
+            btnUndo.Visible = false;
             btnUndo.Click += (sender, args) =>
             {
                 for (int index = 0; index < 2; index++)
@@ -407,7 +408,8 @@ namespace Gomoku
                     board[j, i] = NONE;
                     redoMoves.Add(undoMoves[undoMoves.Count - 1]);
                     undoMoves.RemoveAt(undoMoves.Count - 1);
-                    btnRedo.Enabled = true;
+                    if (undoMoves.Count == 0) btnUndo.Visible = false;
+                    btnRedo.Visible = true;
                     ChangeTurn();
                 }
             };
@@ -416,7 +418,7 @@ namespace Gomoku
             btnRedo.Size = new Size(tileSize, tileSize);
             btnRedo.ImageAlign = ContentAlignment.MiddleCenter;
             btnRedo.Image = redoIcon;
-            btnRedo.Enabled = false;
+            btnRedo.Visible = false;
             btnRedo.Click += (sender, args) =>
             {
                 for (int index = 0; index < 2; index++)
@@ -428,7 +430,8 @@ namespace Gomoku
                     board[j, i] = currentTurn;
                     undoMoves.Add(redoMoves[redoMoves.Count - 1]);
                     redoMoves.RemoveAt(redoMoves.Count - 1);
-                    if (redoMoves.Count == 0) btnRedo.Enabled = false;
+                    if (redoMoves.Count == 0) btnRedo.Visible = false;
+                    btnUndo.Visible = true;
                 }
             };
 
